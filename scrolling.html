@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<title>Scroll Mask</title>
+	<meta name="description" content="Scroll Mask" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link href="https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.css" rel="stylesheet">
+	<script src="https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+	<script src="https://unpkg.com/d3@5.9.1/dist/d3.min.js"></script>
+	<script src="https://unpkg.com/scrollama"></script>
+	<link rel="stylesheet" href="./scroll.css" />
+</head>
+
+<body>
+	<main>
+		<section id="scrolly">
+			<figure>
+				<p>90.0</p>
+				<div id="map"></div>
+			</figure>
+			<article>
+				<div class="step" data-step="1">
+				</div>
+				<div class="step" data-step="2">
+				</div>
+				<div class="step" data-step="3">
+				</div>
+				<div class="step" data-step="4">
+				</div>
+				<div class="step" data-step="5">
+				</div>
+				<div class="step" data-step="6">
+				</div>
+				<div class="step" data-step="7">
+				</div>
+				<div class="step" data-step="8">
+				</div>
+				<div class="step" data-step="9">
+				</div>
+				<div class="step" data-step="10">
+				</div>
+				<div class="step" data-step="11">
+				</div>
+				<div class="step" data-step="12">
+				</div>
+				<div class="step" data-step="13">
+				</div>
+				<div class="step" data-step="14">
+				</div>
+				<div class="step" data-step="15">
+				</div>
+				<div class="step" data-step="16">
+				</div>
+				<div class="step" data-step="17">
+				</div>
+				<div class="step" data-step="18">
+				</div>
+				<div class="step" data-step="19">
+				</div>
+			</article>
+		</section>
+	</main>
+	<script>
+		// using d3 for convenience
+		const main = d3.select("main");
+		const scrolly = main.select("#scrolly");
+		const figure = scrolly.select("figure");
+		const mapFigure = scrolly.select("map");
+		const article = scrolly.select("article");
+		const step = article.selectAll(".step");
+
+		let initLoad = true;
+
+		// initialize the scrollama
+		const scroller = scrollama();
+
+		mapboxgl.accessToken =
+			'pk.eyJ1Ijoid2lsbGlhbS1kYXZpcyIsImEiOiJja2tiYWtvbWcwMmtzMnBvajh3M2kxZGRuIn0.GeROaHKn2Gbvsg1e8buJEw';
+		const map = new mapboxgl.Map({
+			container: 'map',
+			style: 'mapbox://styles/william-davis/cl8xo7vod004d14mur249aknv',
+			center: [0, 90],
+			zoom: 2.2,
+			projection: 'globe',
+			interactive: false
+		});
+
+		map.on('style.load', () => {
+			updateBbox(90);
+		});
+
+		// generic window resize listener event
+		function handleResize() {
+			// 1. update height of step elements
+			const stepH = Math.floor(window.innerHeight * 0.75);
+			step.style("height", stepH + "px");
+
+			const figureHeight = window.innerHeight;
+			const figureMarginTop = 0;
+
+			figure
+				.style("height", figureHeight + "px")
+				.style("top", figureMarginTop + "px");
+
+			mapFigure
+				.style("height", figureHeight + "px");
+
+			map.resize();
+
+			// 3. tell scrollama to update new element dimensions
+			scroller.resize();
+		}
+
+		// scrollama event handlers
+		function handleStepProgress(response) {
+			updateCenter(response.index, response.progress);
+		}
+
+		function updateCenter(index, progress) {
+			const currentProgress = (Math.round(progress * 50) / 50) * 10;
+			const currentIndex = index * 10;
+			const latCalc = 90 - (currentIndex + currentProgress);
+
+			if (latCalc >= -90) {
+				figure.select("p").text(latCalc.toFixed(1));
+				updateBbox(latCalc);
+				map.jumpTo({
+					center: [0, latCalc],
+				});
+			}
+		}
+
+		function updateBbox(lat) {
+
+			const topLat = lat + 5;
+			const bottomLat = lat - 5;
+			const bbox = [-180, bottomLat, 180, topLat];
+			const poly = turf.bboxPolygon(bbox);
+			const masked = turf.mask(poly);
+
+			if (initLoad) {
+				initLoad = false;
+				map.addSource('mask-source', {
+					'type': 'geojson',
+					'data': masked
+				});
+
+				map.addSource('poles-source', {
+					'type': 'geojson',
+					'data': {
+						'type': 'Polygon',
+						'coordinates': [
+							[
+								[
+									-180,
+									85
+								],
+								[
+									-180,
+									90
+								],
+								[
+									180,
+									90
+								],
+								[
+									180,
+									85
+								],
+								[
+									-180,
+									85
+								]
+							]
+						]
+					}
+				});
+
+				map.addSource('outline-source', {
+					'type': 'geojson',
+					'data': poly
+				});
+
+				map.addLayer({
+					'id': 'mask-layer',
+					'type': 'fill',
+					'source': 'mask-source', // reference the data source
+					'layout': {},
+					'paint': {
+						'fill-color': '#111', // blue color fill
+						'fill-opacity': 0.95
+					}
+				});
+
+				map.addLayer({
+					'id': 'outline-layer',
+					'type': 'line',
+					'source': 'outline-source',
+					'layout': {},
+					'paint': {
+						'line-color': '#fff',
+						'line-width': 1.5
+					}
+				});
+
+				map.addLayer({
+					'id': 'poles-layer',
+					'type': 'fill',
+					'source': 'poles-source', // reference the data source
+					'layout': {},
+					'paint': {
+						'fill-color': '#111', // blue color fill
+						'fill-opacity': 1
+					}
+				});
+
+			} else {
+				map.getSource('mask-source').setData(masked);
+				map.getSource('outline-source').setData(poly);
+			}
+		}
+
+
+		function init() {
+
+			// 1. force a resize on load to ensure proper dimensions are sent to scrollama
+			handleResize();
+
+			// 2. setup the scroller passing options
+			// 		this will also initialize trigger observations
+			// 3. bind scrollama event handlers (this can be chained like below)
+			scroller
+				.setup({
+					step: "#scrolly article .step",
+					progress: true,
+					threshold: 20,
+					offset: 0.25
+				})
+				.onStepProgress(handleStepProgress);
+		}
+
+		// kick things off
+		init();
+
+		window.onbeforeunload = function () {
+			window.scrollTo(0, 0);
+		};
+	</script>
+</body>
+
+</html>
